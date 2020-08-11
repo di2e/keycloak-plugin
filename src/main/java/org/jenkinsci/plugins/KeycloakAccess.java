@@ -40,8 +40,6 @@ public class KeycloakAccess {
 
 	private KeycloakCache cache = null;
 
-
-
 	public KeycloakAccess( KeycloakDeployment keycloakDeployment ) {
 		this.keycloakDeployment = keycloakDeployment;
 		this.cache = KeycloakCache.getInstance();
@@ -56,17 +54,11 @@ public class KeycloakAccess {
 			} else {
 				throw new DataRetrievalFailureException( "Unable to get user information from Keycloak for " + username );
 			}
-		} catch (UsernameNotFoundException e) {
+		} catch (Exception e) {
+			LOGGER.log( Level.FINE, "Unable to find user in keycloak: " + username );
 			if (cache.isEnabled()) {
 				cache.addInvalidUser( username );
 			}
-			LOGGER.log( Level.FINE, "Unable to find user in keycloak: " + username );
-			throw new DataRetrievalFailureException( "Unable to get user information from Keycloak for " + username, e );
-		} catch (DataRetrievalFailureException e) {
-			LOGGER.log( Level.FINE, "Invalid user found: " + username );
-			throw e;
-		} catch ( Exception e ) {
-			LOGGER.log( Level.FINE, "Unable to get user information from Keycloak for: " + username, e );
 			throw new DataRetrievalFailureException( "Unable to get user information from Keycloak for " + username, e );
 		}
 	}
