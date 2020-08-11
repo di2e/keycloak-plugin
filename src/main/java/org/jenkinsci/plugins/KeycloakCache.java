@@ -77,6 +77,7 @@ public class KeycloakCache {
 		if (roles != null) {
 			Collection<String> roleCollection = Arrays.asList(roles);
 			CacheEntry<Collection<String>> cacheEntry = new CacheEntry<>( ttlSec, roleCollection );
+			LOGGER.finest("Caching roles for user: " + username);
 			synchronized (rolesByUserCache) {
 				rolesByUserCache.put(username, cacheEntry);
 			}
@@ -105,7 +106,7 @@ public class KeycloakCache {
 	public void setSystemToken(String token, long tokenExpiration) {
 		synchronized (TOKEN_LOCK) {
 			this.token = token;
-			this.tokenExpiration = System.currentTimeMillis() + tokenExpiration - 500; //include 500ms buffer
+			this.tokenExpiration = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis( tokenExpiration ) - 500; //include 500ms buffer
 		}
 	}
 
