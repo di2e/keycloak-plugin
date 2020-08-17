@@ -64,12 +64,14 @@ public class KeycloakCache {
 
 	public Collection<String> getRoles() {
 		if (roleCache != null && roleCache.isValid()) {
+			LOGGER.finest("Returning data from Role Cache");
 			return roleCache.getValue();
 		}
 		return null;
 	}
 
 	public void setRoles(Collection<String> roles) {
+		LOGGER.finest("Updating role cache");
 		roleCache = new CacheEntry<>( ttlSec, roles );
 	}
 
@@ -117,6 +119,17 @@ public class KeycloakCache {
 			}
 			return null;
 		}
+	}
+
+	public void clearCache() {
+		synchronized (rolesByUserCache) {
+			rolesByUserCache.clear();
+		}
+		synchronized (invalidUserMap) {
+			invalidUserMap.clear();
+		}
+		roleCache = null;
+		tokenExpiration = 0;
 	}
 
 	private static class CacheEntry<T> {
