@@ -28,6 +28,7 @@ import org.apache.http.util.EntityUtils;
 import org.keycloak.adapters.KeycloakDeployment;
 import org.keycloak.authorization.client.AuthzClient;
 import org.keycloak.authorization.client.Configuration;
+import org.keycloak.authorization.client.util.Http;
 import org.keycloak.representations.AccessTokenResponse;
 import org.keycloak.util.JsonSerialization;
 import org.springframework.dao.DataAccessException;
@@ -228,16 +229,75 @@ public class KeycloakAccess {
 	}
 
 	private String getAuthToken() {
-		String token = cache.getSystemToken();
-		if (token == null) {
-				Configuration configuration = new Configuration( keycloakDeployment.getAuthServerBaseUrl(), keycloakDeployment.getRealm(), keycloakDeployment.getResourceName(), keycloakDeployment.getResourceCredentials(), keycloakDeployment.getClient() );
-				AuthzClient authzClient = AuthzClient.create( configuration );
-				AccessTokenResponse accessTokenResponse = authzClient.obtainAccessToken();
-				token = accessTokenResponse.getToken();
-				LOGGER.finest( "Token expires in: " + accessTokenResponse.getExpiresIn() );
-				cache.setSystemToken( token, accessTokenResponse.getExpiresIn() );
+		String token = null;
+		SystemTokenInfo systemToken = cache.getSystemAccessToken();
+		if (systemToken != null) {
+			long now = System.currentTimeMillis();
+			if ( now > systemToken.getTokenExpirationTime() ) {
+				//Attempt to refresh
+				if ( now <= systemToken.getRefreshTokenExpirationTime() ) {
+					LOGGER.fine("Refreshing token");
+					AccessTokenResponse newToken = refreshToken( systemToken.getAccessToken().getRefreshToken() );
+					if (newToken != null) {
+						LOGGER.finest( "New Token expires in: " + newToken.getExpiresIn() );
+						LOGGER.finest( "New Refresh Token Expires In: " + newToken.getRefreshExpiresIn() );
+
+						systemToken = new SystemTokenInfo( newToken );
+						cache.storeSystemAccessToken( systemToken );
+						token = systemToken.getAccessToken().getToken();
+					} else {
+						systemToken = null;
+					}
+				} else {
+					//Couldn't refresh, need a new token
+					LOGGER.info("Refresh token is expired, need a new token");
+					systemToken = null;
+				}
+			} else {
+				LOGGER.finer("Returning Cached System Token");
+				return systemToken.getAccessToken().getToken();
+			}
+		}
+
+		if (systemToken == null) {
+			LOGGER.info("Retrieving new System Token");
+			Configuration configuration = new Configuration( keycloakDeployment.getAuthServerBaseUrl(), keycloakDeployment.getRealm(), keycloakDeployment.getResourceName(), keycloakDeployment.getResourceCredentials(), keycloakDeployment.getClient() );
+			AuthzClient authzClient = AuthzClient.create( configuration );
+			AccessTokenResponse accessTokenResponse = authzClient.obtainAccessToken();
+			cache.storeSystemAccessToken(new SystemTokenInfo( accessTokenResponse ));
+			LOGGER.finest( "Token expires in: " + accessTokenResponse.getExpiresIn() );
+			LOGGER.finest( "Refresh Token Expires In: " + accessTokenResponse.getRefreshExpiresIn() );
+			token = accessTokenResponse.getToken();
 		}
 		return token;
+	}
+
+	private AccessTokenResponse refreshToken( String refreshToken ) {
+		String url = keycloakDeployment.getAuthServerBaseUrl() + "/realms/" + keycloakDeployment.getRealm() + "/protocol/openid-connect/token";
+		String clientId = keycloakDeployment.getResourceName();
+		String secret = (String)keycloakDeployment.getResourceCredentials().get("secret");
+		Http http = new Http(getKeycloakConfig(), (params, headers) -> {});
+		return http.<AccessTokenResponse>post(url)
+			.authentication()
+				.client()
+			.form()
+				.param("grant_type", "refresh_token")
+				.param("refresh_token", refreshToken)
+				.param("client_id", clientId)
+				.param("client_secret", secret)
+			.response()
+			.json(AccessTokenResponse.class)
+			.execute();
+	}
+
+	private Configuration getKeycloakConfig() {
+		return new org.keycloak.authorization.client.Configuration(
+			keycloakDeployment.getAuthServerBaseUrl(),
+			keycloakDeployment.getRealm(),
+			keycloakDeployment.getResourceName(),
+			keycloakDeployment.getResourceCredentials(),
+			null
+		);
 	}
 
 	private String[] getRolesFromJson( String json ) throws JsonProcessingException {

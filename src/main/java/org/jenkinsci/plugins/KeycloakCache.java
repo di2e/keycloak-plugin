@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
+import org.keycloak.representations.AccessTokenResponse;
 
 public class KeycloakCache {
 	private static KeycloakCache instance = new KeycloakCache();
@@ -22,9 +23,7 @@ public class KeycloakCache {
 
 	private boolean initialized = false;
 
-	private String token = null;
-
-	private long tokenExpiration = 0;
+	private SystemTokenInfo systemToken = null;
 
 	private static final Object TOKEN_LOCK = new Object();
 
@@ -105,19 +104,15 @@ public class KeycloakCache {
 		}
 	}
 
-	public void setSystemToken(String token, long tokenExpiration) {
+	public void storeSystemAccessToken( SystemTokenInfo systemToken ) {
 		synchronized (TOKEN_LOCK) {
-			this.token = token;
-			this.tokenExpiration = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis( tokenExpiration ) - 500; //include 500ms buffer
+			this.systemToken = systemToken;
 		}
 	}
 
-	public String getSystemToken() {
+	public SystemTokenInfo getSystemAccessToken() {
 		synchronized (TOKEN_LOCK) {
-			if ( token != null && System.currentTimeMillis() < tokenExpiration ) {
-				return token;
-			}
-			return null;
+			return systemToken;
 		}
 	}
 
@@ -129,7 +124,6 @@ public class KeycloakCache {
 			invalidUserMap.clear();
 		}
 		roleCache = null;
-		tokenExpiration = 0;
 	}
 
 	private static class CacheEntry<T> {
