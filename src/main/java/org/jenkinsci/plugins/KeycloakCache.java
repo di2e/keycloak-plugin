@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
+import org.keycloak.representations.AccessTokenResponse;
 
 public class KeycloakCache {
 	private static KeycloakCache instance = new KeycloakCache();
@@ -22,9 +23,7 @@ public class KeycloakCache {
 
 	private boolean initialized = false;
 
-	private String token = null;
-
-	private long tokenExpiration = 0;
+	private SystemTokenInfo systemToken = null;
 
 	private static final Object TOKEN_LOCK = new Object();
 
@@ -64,12 +63,14 @@ public class KeycloakCache {
 
 	public Collection<String> getRoles() {
 		if (roleCache != null && roleCache.isValid()) {
+			LOGGER.finest("Returning data from Role Cache");
 			return roleCache.getValue();
 		}
 		return null;
 	}
 
 	public void setRoles(Collection<String> roles) {
+		LOGGER.finest("Updating role cache");
 		roleCache = new CacheEntry<>( ttlSec, roles );
 	}
 
@@ -103,20 +104,26 @@ public class KeycloakCache {
 		}
 	}
 
-	public void setSystemToken(String token, long tokenExpiration) {
+	public void storeSystemAccessToken( SystemTokenInfo systemToken ) {
 		synchronized (TOKEN_LOCK) {
-			this.token = token;
-			this.tokenExpiration = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis( tokenExpiration ) - 500; //include 500ms buffer
+			this.systemToken = systemToken;
 		}
 	}
 
-	public String getSystemToken() {
+	public SystemTokenInfo getSystemAccessToken() {
 		synchronized (TOKEN_LOCK) {
-			if ( token != null && System.currentTimeMillis() < tokenExpiration ) {
-				return token;
-			}
-			return null;
+			return systemToken;
 		}
+	}
+
+	public void clearCache() {
+		synchronized (rolesByUserCache) {
+			rolesByUserCache.clear();
+		}
+		synchronized (invalidUserMap) {
+			invalidUserMap.clear();
+		}
+		roleCache = null;
 	}
 
 	private static class CacheEntry<T> {

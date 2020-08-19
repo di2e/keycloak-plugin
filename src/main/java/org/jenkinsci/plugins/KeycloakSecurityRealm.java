@@ -429,6 +429,12 @@ public class KeycloakSecurityRealm extends AbstractPasswordBasedSecurityRealm {
 //			}
 //			return FormValidation.ok();
 //		}
+
+
+		public FormValidation doClearCache() {
+			KeycloakCache.getInstance().clearCache();
+			return FormValidation.ok();
+		}
 	}
 
 	/**

@@ -26,5 +26,6 @@
 		<f:entry field="cacheTtlSecStr" title="Cache TTL (Seconds)">
 			<f:textbox default="300"/>
 		</f:entry>
+		<f:validateButton title="Clear Cache" method="clearCache" />
 	</f:advanced>
 </j:jelly>
