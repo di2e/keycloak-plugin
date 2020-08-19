@@ -22,6 +22,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpResponseException;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.utils.HttpClientUtils;
 import org.apache.http.util.EntityUtils;
@@ -277,17 +278,22 @@ public class KeycloakAccess {
 		String clientId = keycloakDeployment.getResourceName();
 		String secret = (String)keycloakDeployment.getResourceCredentials().get("secret");
 		Http http = new Http(getKeycloakConfig(), (params, headers) -> {});
-		return http.<AccessTokenResponse>post(url)
-			.authentication()
-				.client()
-			.form()
-				.param("grant_type", "refresh_token")
-				.param("refresh_token", refreshToken)
-				.param("client_id", clientId)
-				.param("client_secret", secret)
-			.response()
-			.json(AccessTokenResponse.class)
-			.execute();
+		try {
+			return http.<AccessTokenResponse>post(url)
+				.authentication()
+					.client()
+				.form()
+					.param("grant_type", "refresh_token")
+					.param("refresh_token", refreshToken)
+					.param("client_id", clientId)
+					.param("client_secret", secret)
+				.response()
+				.json(AccessTokenResponse.class)
+				.execute();
+		} catch ( Exception e ) {
+			LOGGER.log(Level.INFO, "Unable to renew token with Keycloak", e);
+			return null;
+		}
 	}
 
 	private Configuration getKeycloakConfig() {
